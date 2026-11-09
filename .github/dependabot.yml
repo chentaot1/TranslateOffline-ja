@@ -1,0 +1,58 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    assignees:
+      - chentaot1
+    # AGP, Kotlin and KSP only work in lockstep, and a major bump of any of
+    # them is a migration (AGP 9 drops the kotlin.android plugin), not a PR
+    # to merge. Hilt 2.59+ requires AGP 9. Gradle 9, Retrofit 3 and newer
+    # Compose BOMs need Kotlin 2 or compileSdk 37. Drop these ignores when
+    # migrating.
+    ignore:
+      - dependency-name: "com.android.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "org.jetbrains.kotlin*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.google.devtools.ksp"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.google.dagger*"
+        versions: [">= 2.59"]
+      - dependency-name: "gradle-wrapper"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.squareup.retrofit2*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "androidx.compose:compose-bom"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # First match wins, so the toolchain lands as one PR instead of
+      # kotlin.jvm moving without kotlin.android. Names are exact: the
+      # "com.android.*" wildcards let AGP and Kotlin fall through to
+      # gradle-minor-patch (#263) while KSP moved alone (#262). The wrapper
+      # is here because each AGP minor raises the minimum Gradle version.
+      toolchain:
+        patterns:
+          - "com.android.application"
+          - "com.android.library"
+          - "org.jetbrains.kotlin.android"
+          - "org.jetbrains.kotlin.jvm"
+          - "com.google.devtools.ksp"
+          - "gradle-wrapper"
+      gradle-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    assignees:
+      - chentaot1
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch

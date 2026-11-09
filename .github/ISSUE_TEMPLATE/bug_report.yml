@@ -1,0 +1,44 @@
+name: Bug report
+description: Something went wrong on your device
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Device details matter most. TranslateOffline-ja runs all ML models directly on your phone, so behavior depends on your hardware and OS version.
+  - type: input
+    id: phone
+    attributes:
+      label: Phone model
+      placeholder: Samsung Galaxy S24 Ultra, Pixel 8, etc.
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version
+      placeholder: Android 14, One UI 6.1
+    validations:
+      required: true
+  - type: input
+    id: ram
+    attributes:
+      label: RAM
+      description: Check Settings → About phone.
+      placeholder: 12 GB
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: The release installed, for example v1.0.0.
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead. Please use non-copyrighted or freely licensed manga pages for screenshots.
+    validations:
+      required: true

@@ -1,0 +1,40 @@
+TranslateOffline-ja
+
+An independent, fully on-device Japanese manga & screen translator for Android.
+
+Application and reused inference/pipeline code:
+Yomu, copyright its contributors, AGPL-3.0.
+https://github.com/artsaraiva/yomu
+Corresponding modified source is supplied with this installation deliverable.
+See licenses/Yomu-AGPL-3.0.txt.
+
+Page background sampling and contrasting text color adapted from
+manga-translator-android, copyright 2026 jedzqer, AGPL-3.0.
+https://github.com/jedzqer/manga-translator-android
+Reference commit b729828dc90b0840538c9e18f5ba12fcf00dfea9.
+Modified for local captured-page rendering; the cloud translation layer is not included.
+See licenses/Manga-Translator-Android.txt.
+
+Japanese translation engine:
+Fumeto 350M translation engine: fumetotranslate-manga-ja-translator by fumetodev
+(https://huggingface.co/fumetodev/fumetotranslate-manga-ja-translator),
+encoder adapted from ModernBERT-ja (AnswerDotAI / LightOn), Apache-2.0.
+
+Layout & bubble detector:
+manga-panel-detector-yolo26n-onnx by mednasserallah
+(https://huggingface.co/mednasserallah/manga-panel-detector-yolo26n-onnx),
+based on Ultralytics YOLO26, AGPL-3.0.
+
+Japanese manga OCR:
+manga-ocr by kha-white / manga-ocr-2025 by jzhang533,
+ONNX conversion by artsaraiva, Apache-2.0.
+
+Supplemental scene text detector:
+PaddlePaddle PP-OCRv6 DBNet detection, Apache-2.0.
+
+Inference runtime:
+ONNX Runtime: Microsoft Corporation, MIT licence (see licenses/ONNX-Runtime-MIT.txt).
+
+All recognition and translation execute locally. The application does not
+request Internet permission. Screen captures and reading history are not
+written to disk. Model files are prepared in private app storage.

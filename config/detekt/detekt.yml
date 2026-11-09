@@ -1,0 +1,9 @@
+# The mechanical rules from CODING_STANDARDS.md that detekt checks without type resolution (#380).
+style:
+  active: true
+  ForbiddenComment:
+    active: true
+    # The defaults need a colon after the marker, so a bare `// TODO fix` slips through.
+    comments: ['TODO', 'FIXME', 'STOPSHIP']
+  UnusedImports:
+    active: true
