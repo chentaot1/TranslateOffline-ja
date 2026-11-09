@@ -1,0 +1,52 @@
+# IDE & OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.iml
+.idea/
+/.idea
+.vscode/
+
+# Build artifacts & local caches
+build/
+.gradle/
+local.properties
+/local.properties
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+*.ap_
+*.jks
+*.keystore
+
+# Local workspaces & temporary dirs
+.worktrees/
+.superpowers/
+.local/
+outputs/
+scratch/
+vendor/
+__pycache__/
+*.pyc
+
+# Model weights & large binaries (never commit weights directly to git)
+*.onnx
+*.gguf
+*.bin
+*.tar.gz
+
+# Benchmarks & local asset caches
+scripts/speed-fixtures/
+offline/src/main/assets/models/
+offline/src/main/assets/model-manifest.json
+
+# Scratch debug / test reference files
+tokenizer*.json
+*vocab*.json
+config_reference.json
+meta_reference.json
+run_reference.py
+test_punct.py
+handoff.md
