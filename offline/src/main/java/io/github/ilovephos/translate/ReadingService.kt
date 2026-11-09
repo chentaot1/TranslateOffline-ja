@@ -14,7 +14,6 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ServiceCompat
-import com.yomu.pipeline.typesetting.TypesetBubble
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -75,14 +74,13 @@ class ReadingService : Service() {
         try {
             overlay = ReadingOverlay(
                 this,
-                source == SourceLanguage.JAPANESE,
                 ::manual,
                 ::toggleOcr,
                 ::movement,
                 { displayRevision++ }
             ) { stopSelf() }.also { it.showControls() }
             capture = ProjectionCapture(this, data, ::movement) { stopSelf() }
-            session = ReadingSession(applicationContext, source, strip)
+            session = ReadingSession(applicationContext, strip)
         } catch (error: Exception) {
             overlay?.message("Could not start reading: ${error.message}")
             scope.launch { delay(2500); stopSelf() }
@@ -156,7 +154,6 @@ class ReadingService : Service() {
         Log.d("ReadingMotion", "Clearing page: $reason")
         generations.advance()
         displayRevision++
-        session?.abort()
         translationJob?.cancel()
         overlay?.clear()
         gate.reset()
@@ -215,7 +212,7 @@ class ReadingService : Service() {
                     }
                     currentOverlay.show(page.bubbles, width, height)
                     if (page.bubbles.isNotEmpty()) recall[key] = page
-                    val ocrTag = if (session != null && BundledAssets.language == SourceLanguage.JAPANESE) " [${session?.ocrMode?.shortLabel}]" else ""
+                    val ocrTag = session?.ocrMode?.shortLabel?.let { " [$it]" }.orEmpty()
                     currentOverlay.message(if (page.bubbles.isEmpty()) "No readable bubbles found. Try zooming or moving the page."
                         else "${page.bubbles.size}/${page.total} bubbles$ocrTag • ${"%.1f".format(page.elapsedMs / 1000.0)} s")
                     currentOverlay.awaitDraw()
@@ -243,7 +240,6 @@ class ReadingService : Service() {
         running = false
         ready = false
         generations.stop()
-        session?.abort()
         scope.cancel()
         capture?.close()
         overlay?.close()

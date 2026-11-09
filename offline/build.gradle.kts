@@ -23,21 +23,14 @@ android {
             buildConfigField("String", "SOURCE_LANGUAGE", "\"JAPANESE\"")
             resValue("string", "app_name", "Translate Japanese")
         }
-        create("chinese") {
-            dimension = "sourceLanguage"
-            applicationIdSuffix = ".chinese"
-            buildConfigField("String", "SOURCE_LANGUAGE", "\"CHINESE\"")
-            resValue("string", "app_name", "Translate Chinese")
-        }
     }
     sourceSets.getByName("japanese").assets.srcDir(rootProject.file(".local/bundles/japanese"))
-    sourceSets.getByName("chinese").assets.srcDir(rootProject.file(".local/bundles/chinese"))
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    androidResources { noCompress += listOf("gguf", "onnx") }
+    androidResources { noCompress += "onnx" }
     packaging { jniLibs { useLegacyPackaging = true } }
     signingConfigs.getByName("debug") { storeFile = rootProject.file(".local/debug.keystore") }
     buildTypes {

@@ -4,17 +4,17 @@ import kotlin.math.abs
 import kotlin.math.hypot
 
 internal data class TextPoint(val x: Float, val y: Float)
-internal data class ChineseLine(val points: List<TextPoint>, val width: Float, val height: Float) {
+internal data class DbNetLine(val points: List<TextPoint>, val width: Float, val height: Float) {
     val centerY: Float get() = points.sumOf { it.y.toDouble() }.toFloat() / 4f
     val centerX: Float get() = points.sumOf { it.x.toDouble() }.toFloat() / 4f
 }
 
 /** DB threshold components become expanded minimum-area rectangles, one crop per text line. */
-internal fun detectChineseLines(probabilities: FloatArray, width: Int, height: Int): List<ChineseLine> {
+internal fun detectDbNetLines(probabilities: FloatArray, width: Int, height: Int): List<DbNetLine> {
     require(width > 0 && height > 0 && probabilities.size == width * height)
     val visited = BooleanArray(probabilities.size)
     val queue = IntArray(probabilities.size)
-    val lines = mutableListOf<ChineseLine>()
+    val lines = mutableListOf<DbNetLine>()
     var candidates = 0
     for (start in probabilities.indices) {
         if (visited[start] || probabilities[start] <= 0.2f) continue
@@ -51,7 +51,7 @@ internal fun detectChineseLines(probabilities: FloatArray, width: Int, height: I
         val expanded = expandRectangle(rectangle)
         if (minOf(expanded.width, expanded.height) >= 5f) lines.add(expanded)
     }
-    return orderChineseLines(lines)
+    return orderDbNetLines(lines)
 }
 
 private fun cross(a: TextPoint, b: TextPoint, c: TextPoint): Float =
@@ -71,9 +71,9 @@ private fun convexHull(points: List<TextPoint>): List<TextPoint> {
     return half(sorted) + half(sorted.reversed())
 }
 
-private fun minimumRectangle(hull: List<TextPoint>): ChineseLine? {
+private fun minimumRectangle(hull: List<TextPoint>): DbNetLine? {
     if (hull.size < 3) return null
-    var best: ChineseLine? = null
+    var best: DbNetLine? = null
     var bestArea = Float.POSITIVE_INFINITY
     for (index in hull.indices) {
         val a = hull[index]
@@ -96,7 +96,7 @@ private fun minimumRectangle(hull: List<TextPoint>): ChineseLine? {
             val left = byX.take(2).sortedBy { it.y }
             val right = byX.takeLast(2).sortedBy { it.y }
             val ordered = listOf(left[0], right[0], right[1], left[1])
-            best = ChineseLine(ordered, distance(ordered[0], ordered[1]), distance(ordered[0], ordered[3]))
+            best = DbNetLine(ordered, distance(ordered[0], ordered[1]), distance(ordered[0], ordered[3]))
             bestArea = area
         }
     }
@@ -105,7 +105,7 @@ private fun minimumRectangle(hull: List<TextPoint>): ChineseLine? {
 
 private fun distance(a: TextPoint, b: TextPoint): Float = hypot(b.x - a.x, b.y - a.y)
 
-private fun rectangleScore(line: ChineseLine, probabilities: FloatArray, width: Int, height: Int): Float {
+private fun rectangleScore(line: DbNetLine, probabilities: FloatArray, width: Int, height: Int): Float {
     val points = line.points
     val minX = points.minOf { it.x.toInt() }.coerceIn(0, width - 1)
     val maxX = points.maxOf { it.x.toInt() }.coerceIn(0, width - 1)
@@ -124,7 +124,7 @@ private fun rectangleScore(line: ChineseLine, probabilities: FloatArray, width: 
     return if (count == 0) 0f else (score / count).toFloat()
 }
 
-private fun expandRectangle(line: ChineseLine): ChineseLine {
+private fun expandRectangle(line: DbNetLine): DbNetLine {
     val expansion = line.width * line.height * 1.4f / (2f * (line.width + line.height))
     val a = line.points[0]
     val b = line.points[1]
@@ -134,16 +134,16 @@ private fun expandRectangle(line: ChineseLine): ChineseLine {
     val vx = (d.x - a.x) / line.height
     val vy = (d.y - a.y) / line.height
     val signs = listOf(-1f to -1f, 1f to -1f, 1f to 1f, -1f to 1f)
-    return ChineseLine(line.points.mapIndexed { index, p ->
+    return DbNetLine(line.points.mapIndexed { index, p ->
         val (u, v) = signs[index]
         TextPoint(p.x + expansion * (u * ux + v * vx), p.y + expansion * (u * uy + v * vy))
     }, line.width + 2 * expansion, line.height + 2 * expansion)
 }
 
 /** Fixed row anchors prevent chained overlaps from making ordering dependent on input permutation. */
-private fun orderChineseLines(lines: List<ChineseLine>): List<ChineseLine> {
-    val rows = mutableListOf<MutableList<ChineseLine>>()
-    for (line in lines.sortedWith(compareBy<ChineseLine> { it.centerY }.thenBy { it.centerX })) {
+private fun orderDbNetLines(lines: List<DbNetLine>): List<DbNetLine> {
+    val rows = mutableListOf<MutableList<DbNetLine>>()
+    for (line in lines.sortedWith(compareBy<DbNetLine> { it.centerY }.thenBy { it.centerX })) {
         val row = rows.lastOrNull()
         val anchor = row?.firstOrNull()
         if (anchor != null && abs(line.centerY - anchor.centerY) < minOf(line.height, anchor.height) * 0.5f) {

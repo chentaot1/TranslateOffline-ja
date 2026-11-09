@@ -2,13 +2,11 @@ package com.yomu.ml.encdec
 
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import org.mockito.Mockito.mock
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 

@@ -7,7 +7,6 @@ import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.FloatBuffer
 import java.nio.LongBuffer
 
 /**

@@ -1,12 +1,10 @@
 package com.yomu.pipeline.sfx
 
 import android.graphics.RectF
-import com.yomu.core.MangaSfxDictionary
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import kotlin.math.abs
 import kotlin.math.ln
 
 @RunWith(RobolectricTestRunner::class)

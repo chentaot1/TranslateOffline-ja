@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$SdkRoot,
     [Parameter(Mandatory=$true)][string]$VisionCache,
     [string]$GradleCache,
-    [ValidateSet('Both','Japanese','Chinese')][string]$Language = 'Both',
+    [ValidateSet('Japanese')][string]$Language = 'Japanese',
     [switch]$IncludeEmulator,
     [switch]$SkipLint
 )
@@ -26,7 +26,7 @@ if (!(Test-Path -LiteralPath $key)) {
 powershell.exe -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'prepare-offline-assets.ps1') -VisionCache $VisionCache -Language $Language
 if ($LASTEXITCODE -ne 0) { throw 'Preparing offline assets failed.' }
 $abis = if ($IncludeEmulator) { 'arm64-v8a,x86_64' } else { 'arm64-v8a' }
-$languages = if ($Language -eq 'Both') { @('Japanese','Chinese') } else { @($Language) }
+$languages = @($Language)
 $tasks = @(':pipeline:testDebugUnitTest',':ml:testDebugUnitTest',':core:test')
 foreach ($sourceLanguage in $languages) {
     $tasks += ":offline:test${sourceLanguage}DebugUnitTest"

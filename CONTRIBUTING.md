@@ -12,9 +12,9 @@ Thanks for helping. TranslateOffline-ja is an independent, 100% offline manga tr
 
 TranslateOffline-ja uses JDK 17 and Android SDK 34–36. Follow the instructions in [Building from Source](README.md#-building-from-source).
 
-Clone the repository with submodules:
+Clone the repository:
 ```bash
-git clone --recursive https://github.com/chentaot1/TranslateOffline-ja.git
+git clone https://github.com/chentaot1/TranslateOffline-ja.git
 ```
 
 ## Making a Change

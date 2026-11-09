@@ -9,22 +9,6 @@ android {
     defaultConfig {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        externalNativeBuild {
-            cmake {
-                cFlags += "-O3"
-                cppFlags += "-std=c++17 -O3"
-                arguments += "-DANDROID_STL=c++_shared"
-            }
-        }
-        // CI passes -Pyomu.abis=arm64-v8a on PRs to compile llama.cpp once instead of twice.
-        val abis = (findProperty("yomu.abis") as String?)?.split(",") ?: listOf("arm64-v8a", "x86_64")
-        ndk { abiFilters += abis }
-    }
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

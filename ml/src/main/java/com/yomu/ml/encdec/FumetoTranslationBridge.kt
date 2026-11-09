@@ -10,7 +10,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Page-level TranslationSlot implementation powered by fumetotranslate ONNX encoder-decoder.
- * Replaces Hy-MT2-1.8B (~1.13GB GGUF) with int8 ONNX (~448MB), executing in ~300-500ms on S24 Ultra.
+ * Int8 ONNX (~448MB) executes in ~300-500ms on mobile CPUs.
  */
 class FumetoTranslationBridge(
     private val modelDir: File,

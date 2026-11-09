@@ -20,9 +20,6 @@ Fumeto 350M translation engine: fumetotranslate-manga-ja-translator by fumetodev
 (https://huggingface.co/fumetodev/fumetotranslate-manga-ja-translator),
 encoder adapted from ModernBERT-ja (AnswerDotAI / LightOn), Apache-2.0.
 
-Chinese flavor translation engine:
-Hy-MT2 1.8B: Tencent Hunyuan, Apache-2.0 licence.
-
 Layout & bubble detector:
 manga-panel-detector-yolo26n-onnx by mednasserallah
 (https://huggingface.co/mednasserallah/manga-panel-detector-yolo26n-onnx),
@@ -35,9 +32,8 @@ ONNX conversion by artsaraiva, Apache-2.0.
 Supplemental scene text detector:
 PaddlePaddle PP-OCRv6 DBNet detection, Apache-2.0.
 
-Inference runtimes:
+Inference runtime:
 ONNX Runtime: Microsoft Corporation, MIT licence (see licenses/ONNX-Runtime-MIT.txt).
-llama.cpp and GGML: their respective contributors, MIT licence (see licenses/llama.cpp-MIT.txt).
 
 All recognition and translation execute locally. The application does not
 request Internet permission. Screen captures and reading history are not

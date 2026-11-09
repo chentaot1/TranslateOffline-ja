@@ -1,9 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$VisionCache,
-    [ValidateSet('Both','Japanese','Chinese')][string]$Language='Both',
+    [ValidateSet('Japanese')][string]$Language='Japanese',
     [string]$FumetoDir="",
-    [string]$SfxModel="",
-    [string]$HyModel=""
+    [string]$SfxModel=""
 )
 $ErrorActionPreference='Stop'
 $repoRoot=Split-Path -Parent $PSScriptRoot
@@ -44,12 +43,11 @@ foreach ($f in $fumetoFiles) {
     }
 }
 
-$hyCandidate = Join-Path $VisionCache 'hy_mt2.gguf'
-$hyAvailable = $false
-try { $hyAvailable = Test-Path -LiteralPath $HyModel -ErrorAction Stop } catch { $hyAvailable = $false }
-if (!$hyAvailable -and (Test-Path -LiteralPath $hyCandidate)) {
-    $HyModel = $hyCandidate
+$textDetectionSource = Join-Path $VisionCache 'text_detection.onnx'
+if (-not (Test-Path -LiteralPath $textDetectionSource)) {
+    $textDetectionSource = Join-Path $VisionCache 'chinese_detection.onnx'
 }
+
 $assetRoot=Join-Path $repoRoot 'offline/src/main/assets'
 if((Test-Path -LiteralPath (Join-Path $assetRoot 'models')) -or (Test-Path -LiteralPath (Join-Path $assetRoot 'model-manifest.json'))){
     throw 'Move legacy combined model assets out of offline/src/main/assets before preparing separate installers.'
@@ -57,7 +55,7 @@ if((Test-Path -LiteralPath (Join-Path $assetRoot 'models')) -or (Test-Path -Lite
 $bundles=@{
     Japanese=@(
         @{source=(Join-Path $VisionCache 'manga_panel_detector.onnx');name='manga_panel_detector.onnx'},
-        @{source=(Join-Path $VisionCache 'chinese_detection.onnx');name='chinese_detection.onnx'},
+        @{source=$textDetectionSource;name='text_detection.onnx'},
         @{source=(Join-Path $VisionCache 'manga_ocr_nar_small_distil_int8_u8s8.onnx');name='manga_ocr_nar.onnx'},
         @{source=(Join-Path $VisionCache 'nar_vocabulary_6817.json');name='nar_vocabulary_6817.json'},
         @{source=(Join-Path $VisionCache 'manga_ocr_ar_encoder.onnx');name='manga_ocr_ar_encoder.onnx'},
@@ -69,23 +67,15 @@ $bundles=@{
         @{source=(Join-Path $FumetoDir 'meta.json');name='meta.json'},
         @{source=$SfxModel;name='sfx-filter-v0.3.onnx'}
     )
-    Chinese=@(
-        @{source=(Join-Path $VisionCache 'manga_panel_detector.onnx');name='manga_panel_detector.onnx'},
-        @{source=(Join-Path $VisionCache 'chinese_detection.onnx');name='chinese_detection.onnx'},
-        @{source=$HyModel;name='hy_mt2.gguf'},
-        @{source=(Join-Path $VisionCache 'chinese_recognition.onnx');name='chinese_recognition.onnx'},
-        @{source=(Join-Path $VisionCache 'chinese_characters.json');name='chinese_characters.json'}
-    )
 }
-$selected=if($Language -eq 'Both'){@('Japanese','Chinese')}else{@($Language)}
-foreach($sourceLanguage in $selected){
+foreach($sourceLanguage in @($Language)){
     $bundleRoot=Join-Path $repoRoot ".local/bundles/$($sourceLanguage.ToLowerInvariant())"
     $modelRoot=Join-Path $bundleRoot 'models'
     New-Item -ItemType Directory -Path $modelRoot -Force|Out-Null
     $inputs=$bundles[$sourceLanguage]
     Get-ChildItem -LiteralPath $modelRoot -File | Where-Object { $_.Name -notin $inputs.name } | Remove-Item -Force
     $unexpected=@(Get-ChildItem -LiteralPath $modelRoot -File|Where-Object {$_.Name -notin $inputs.name})
-    if($unexpected.Count){throw "Unexpected files in $modelRoot; refusing to package a mixed language bundle."}
+    if($unexpected.Count){throw "Unexpected files in $modelRoot; refusing to package a mixed bundle."}
     $assets=@(foreach($inputModel in $inputs){
         $source=Get-Item -LiteralPath $inputModel.source
         if($source.Length -le 0){throw "Empty model: $($source.FullName)"}

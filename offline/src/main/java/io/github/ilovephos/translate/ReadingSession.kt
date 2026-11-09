@@ -4,9 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.RectF
-import com.yomu.core.*
-import com.yomu.ml.LlamaBridge
-import com.yomu.ml.LlamaTranslationBridge
+import com.yomu.core.PageTranslation
+import com.yomu.core.TargetLanguage
+import com.yomu.core.TranslatableBubble
+import com.yomu.core.TranslatablePage
+import com.yomu.core.TranslationOutcome
+import com.yomu.core.TranslationSlot
+import com.yomu.core.TranslationStatus
 import com.yomu.ml.OnnxRuntime
 import com.yomu.ml.encdec.FumetoTranslationBridge
 import com.yomu.pipeline.bubble.Bubble
@@ -15,9 +19,9 @@ import com.yomu.pipeline.bubble.bubbleRenderBoxes
 import com.yomu.pipeline.context.ContextAssembler
 import com.yomu.pipeline.layout.sortedBubbles
 import com.yomu.pipeline.layout.supplementalTextRegions
-import com.yomu.pipeline.ocr.ChineseOcrEngine
-import com.yomu.pipeline.ocr.NarOcrEngine
 import com.yomu.pipeline.ocr.ArOcrEngine
+import com.yomu.pipeline.ocr.DbNetDetector
+import com.yomu.pipeline.ocr.NarOcrEngine
 import com.yomu.pipeline.ocr.OcrResult
 import com.yomu.pipeline.sfx.SfxFilterEngine
 import com.yomu.pipeline.translation.TranslatedBubble
@@ -35,10 +39,9 @@ enum class JapaneseOcrMode(val label: String, val shortLabel: String) {
     NAR("Non-Autoregressive (Fast 15ms)", "NAR")
 }
 
-/** Worker-thread-owned inference objects. Native cancellation is the only cross-thread operation. */
+/** Worker-thread-owned inference objects. */
 class ReadingSession(
     context: Context,
-    private val source: SourceLanguage,
     private val strip: Boolean
 ) {
     private val root = BundledAssets.directory(context)
@@ -46,14 +49,9 @@ class ReadingSession(
     private val detector = BubbleDetector(runtime)
     private val japaneseNar = NarOcrEngine()
     private val japaneseAr = ArOcrEngine()
-    private val chinese = ChineseOcrEngine()
+    private val textDetector = DbNetDetector()
     private var sfxFilter: SfxFilterEngine? = null
-    private val llama = if (source == SourceLanguage.CHINESE) LlamaBridge(context) else null
-    private val translation: TranslationSlot = if (source == SourceLanguage.JAPANESE) {
-        FumetoTranslationBridge(modelDir = root, threads = 4, beam = 4)
-    } else {
-        LlamaTranslationBridge(llama!!, profile())
-    }
+    private val translation: TranslationSlot = FumetoTranslationBridge(modelDir = root, threads = 4, beam = 4)
     private val typesetter = Typesetter()
 
     @Volatile
@@ -67,19 +65,21 @@ class ReadingSession(
     private fun path(name: String) = File(root, name).absolutePath
 
     suspend fun load() {
-        val detectorModel = if (File(root, "manga_panel_detector.onnx").exists()) "manga_panel_detector.onnx" else "bubble_detection.onnx"
-        check(detector.loadModel(path(detectorModel))) { "Bubble detector could not be loaded" }
-        val ocr = when (source) {
-            SourceLanguage.JAPANESE -> {
-                val narOk = japaneseNar.loadModel(path("manga_ocr_nar.onnx"), path("nar_vocabulary_6817.json"))
-                val arOk = japaneseAr.loadModel(path("manga_ocr_ar_encoder.onnx"), path("manga_ocr_ar_decoder.onnx"), path("nar_vocabulary_6817.json"))
-                val detOk = chinese.loadDetector(path("chinese_detection.onnx"))
-                sfxFilter = SfxFilterEngine.create(path("sfx-filter-v0.3.onnx"), threads = 2)
-                (narOk || arOk) && detOk
-            }
-            SourceLanguage.CHINESE -> chinese.loadModel(path("chinese_detection.onnx"), path("chinese_recognition.onnx"), path("chinese_characters.json"))
+        val detectorModel = if (File(root, "manga_panel_detector.onnx").exists()) {
+            "manga_panel_detector.onnx"
+        } else {
+            "bubble_detection.onnx"
         }
-        check(ocr) { "${source.label.substringBefore(' ')} OCR could not be loaded" }
+        check(detector.loadModel(path(detectorModel))) { "Bubble detector could not be loaded" }
+        val narOk = japaneseNar.loadModel(path("manga_ocr_nar.onnx"), path("nar_vocabulary_6817.json"))
+        val arOk = japaneseAr.loadModel(
+            path("manga_ocr_ar_encoder.onnx"),
+            path("manga_ocr_ar_decoder.onnx"),
+            path("nar_vocabulary_6817.json")
+        )
+        val detOk = textDetector.loadDetector(path("text_detection.onnx"))
+        sfxFilter = SfxFilterEngine.create(path("sfx-filter-v0.3.onnx"), threads = 2)
+        check((narOk || arOk) && detOk) { "Japanese OCR could not be loaded" }
         coroutineContext.ensureActive()
         check(translation.ensureReady()) {
             val statusMsg = when (val s = translation.status) {
@@ -90,27 +90,10 @@ class ReadingSession(
         }
     }
 
-    private fun profile() = ModelProfile(
-        modelPath = path(source.model),
-        idKeyedBatch = (source == SourceLanguage.JAPANESE),
-        promptMode = if (source == SourceLanguage.JAPANESE) TranslationPromptMode.HY_MT2_MANGA else TranslationPromptMode.HY_MT2,
-        generation = if (source == SourceLanguage.JAPANESE)
-            GenerationParams(temperature = 0.15f, topK = 20, topP = 0.6f, penaltyRepeat = 1.05f, maxTokens = 64)
-        else
-            GenerationParams(temperature = 0.7f, topK = 20, topP = 0.6f, penaltyRepeat = 1.05f, maxTokens = 128),
-        runtime = RuntimeLimits(
-            threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4),
-            contextTokens = 2048
-        ),
-        repackWeights = true,
-        multilingual = false
-    )
-
     suspend fun read(
         bitmap: Bitmap,
         ignored: RectF,
-        status: (String) -> Unit,
-        partial: ((List<TypesetBubble>) -> Unit)? = null
+        status: (String) -> Unit
     ): ReadingPage {
         val started = System.currentTimeMillis()
         status("Finding speech bubbles…")
@@ -118,7 +101,11 @@ class ReadingSession(
         coroutineContext.ensureActive()
 
         status("Finding captions outside speech bubbles…")
-        val captions = supplementalTextRegions(chinese.detectRegions(bitmap), bubbles.map { it.boundingBox }, source == SourceLanguage.CHINESE)
+        val captions = supplementalTextRegions(
+            textDetector.detectRegions(bitmap),
+            bubbles.map { it.boundingBox },
+            leftToRight = false
+        )
         val firstCaption = (bubbles.maxOfOrNull { it.id } ?: -1) + 1
         val rawDetected = filterDetections(
             bubbles + captions.mapIndexed { index, box -> Bubble(firstCaption + index, box, 1f) },
@@ -129,7 +116,7 @@ class ReadingSession(
         val detected = deduplicateBubbles(rawDetected, firstCaption)
         coroutineContext.ensureActive()
 
-        val ordered = sortedBubbles(detected, strip, source == SourceLanguage.CHINESE)
+        val ordered = sortedBubbles(detected, strip, leftToRight = false)
         val reads = linkedMapOf<Int, OcrResult>()
         val sfxTranslations = linkedMapOf<Int, String>()
 
@@ -145,8 +132,7 @@ class ReadingSession(
         )
 
         for ((index, bubble) in ordered.withIndex()) {
-            val engineTag = if (source == SourceLanguage.JAPANESE) ocrMode.shortLabel else "OCR"
-            status("Reading ${index + 1} / ${ordered.size} ($engineTag)…")
+            status("Reading ${index + 1} / ${ordered.size} (${ocrMode.shortLabel})…")
             val box = bubble.boundingBox
             val left = box.left.roundToInt().coerceIn(0, bitmap.width - 1)
             val top = box.top.roundToInt().coerceIn(0, bitmap.height - 1)
@@ -154,20 +140,17 @@ class ReadingSession(
             val bottom = box.bottom.roundToInt().coerceIn(top + 1, bitmap.height)
             val crop = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
             try {
-                val read = if (source == SourceLanguage.JAPANESE) {
-                    if (ocrMode == JapaneseOcrMode.AR && japaneseAr.isModelLoaded()) {
-                        japaneseAr.extractText(crop)
-                    } else {
-                        japaneseNar.extractText(crop)
-                    }
+                val read = if (ocrMode == JapaneseOcrMode.AR && japaneseAr.isModelLoaded()) {
+                    japaneseAr.extractText(crop)
                 } else {
-                    chinese.extractText(crop)
+                    japaneseNar.extractText(crop)
                 }
                 // Japanese OCR confidence threshold raised to 0.65f to reject faint halftones and line noise
-                val minimum = if (source == SourceLanguage.JAPANESE) 0.65f else 0.6f
-                if (read != null && read.confidence >= minimum && read.text.any { it in '\u3040'..'\u30ff' || it in '\u3400'..'\u9fff' || it in '\uff66'..'\uff9f' }) {
+                if (read != null && read.confidence >= 0.65f &&
+                    read.text.any { it in '\u3040'..'\u30ff' || it in '\u3400'..'\u9fff' || it in '\uff66'..'\uff9f' }
+                ) {
                     // Check sound effect classification for unenclosed text in Japanese
-                    if (source == SourceLanguage.JAPANESE && bubble.id >= firstCaption && sfxFilter != null) {
+                    if (bubble.id >= firstCaption && sfxFilter != null) {
                         val candidate = SfxFilterEngine.CandidateRegion(
                             boundingBox = bubble.boundingBox,
                             recognitionConfidence = read.confidence,
@@ -195,7 +178,7 @@ class ReadingSession(
         }
         if (reads.isEmpty()) return ReadingPage(emptyList(), detected.size, System.currentTimeMillis() - started)
 
-        val rawPanels = if (!strip && source == SourceLanguage.JAPANESE) {
+        val rawPanels = if (!strip) {
             val assembled = ContextAssembler().assemble(detected, reads, bitmap).blocks.map { it.readingOrder }
             if (assembled.flatten().isNotEmpty()) assembled else listOf(ordered.map { it.id })
         } else listOf(ordered.map { it.id })
@@ -219,7 +202,12 @@ class ReadingSession(
         }), TargetLanguage.ENGLISH)
 
         val boxes = bubbleRenderBoxes(bitmap, detected.associate { bubble ->
-            bubble.id to floatArrayOf(bubble.boundingBox.left, bubble.boundingBox.top, bubble.boundingBox.right, bubble.boundingBox.bottom)
+            bubble.id to floatArrayOf(
+                bubble.boundingBox.left,
+                bubble.boundingBox.top,
+                bubble.boundingBox.right,
+                bubble.boundingBox.bottom
+            )
         })
 
         val output = if (dialogueOnlyIds.isNotEmpty()) {
@@ -234,7 +222,10 @@ class ReadingSession(
         for ((id, text) in output.byId) {
             if (text.isNotBlank()) {
                 val original = reads[id] ?: continue
-                val typeset = matchPageColors(bitmap, typesetter.typeset(listOf(TranslatedBubble(id, original.text, text, true)), boxes).single())
+                val typeset = matchPageColors(
+                    bitmap,
+                    typesetter.typeset(listOf(TranslatedBubble(id, original.text, text, true)), boxes).single()
+                )
                 // Enforce pure black #000000 on dark AMOLED backgrounds for full subpixel shutoff
                 rendered[id] = if (Color.luminance(typeset.backgroundColor) < 0.15f) {
                     typeset.copy(backgroundColor = Color.BLACK, textColor = Color.WHITE)
@@ -247,7 +238,10 @@ class ReadingSession(
         // Render sound effect matches with unboxed, translucent typography over comic art
         for ((id, sfxText) in sfxTranslations) {
             val original = reads[id] ?: continue
-            val typeset = typesetter.typeset(listOf(TranslatedBubble(id, original.text, sfxText, true)), boxes).single()
+            val typeset = typesetter.typeset(
+                listOf(TranslatedBubble(id, original.text, sfxText, true)),
+                boxes
+            ).single()
             rendered[id] = typeset.copy(
                 backgroundColor = Color.TRANSPARENT,
                 textColor = 0xE6FFFFFF.toInt()
@@ -320,14 +314,12 @@ class ReadingSession(
         }
     }
 
-    fun abort() { llama?.setAbortRequested(true) }
-
     fun close() {
         translation.close()
         sfxFilter?.close()
         japaneseNar.release()
         japaneseAr.release()
-        chinese.release()
+        textDetector.release()
         detector.release()
         runtime.release()
     }

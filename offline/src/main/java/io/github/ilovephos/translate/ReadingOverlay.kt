@@ -15,7 +15,6 @@ import kotlin.coroutines.resume
 /** Main-thread-only floating controls and touch-through English lettering. */
 class ReadingOverlay(
     private val context: Context,
-    private val isJapanese: Boolean,
     private val onTranslate: () -> Unit,
     private val onToggleOcr: () -> String,
     private val onMovement: () -> Unit,
@@ -83,16 +82,14 @@ class ReadingOverlay(
             }
         })
         row.addView(button("Translate") { onTranslate() })
-        if (isJapanese) {
-            val ocrBtn = button("AR") {}
-            ocrBtn.contentDescription = "Toggle OCR engine: AR (SOTA Accuracy) vs NAR (Fast)"
-            ocrBtn.setOnClickListener {
-                ocrBtn.text = onToggleOcr()
-            }
-            row.addView(ocrBtn)
+        val ocrBtn = button("AR") {}
+        ocrBtn.contentDescription = "Toggle OCR engine: AR (SOTA Accuracy) vs NAR (Fast)"
+        ocrBtn.setOnClickListener {
+            ocrBtn.text = onToggleOcr()
         }
+        row.addView(ocrBtn)
         row.addView(button("Original") {}.apply {
-            contentDescription = "Hold to reveal original Japanese or Chinese"
+            contentDescription = "Hold to reveal original Japanese"
             setOnTouchListener { view, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { originalHeld = true; letterView.visibility = View.INVISIBLE; onVisibilityChanged() }
